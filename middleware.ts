@@ -1,0 +1,103 @@
+import { createServerClient } from '@supabase/ssr';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
+
+function safeNextPath(nextValue: string | null) {
+  if (!nextValue) return null;
+  if (!nextValue.startsWith('/')) return null;
+  return nextValue;
+}
+
+export async function middleware(request: NextRequest) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    return NextResponse.next();
+  }
+
+  const response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  });
+
+  const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const pathname = request.nextUrl.pathname;
+  const isProtected = pathname.startsWith('/admin') || pathname.startsWith('/app');
+
+  if (!user && isProtected) {
+    const url = new URL('/login', request.url);
+    url.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(url);
+  }
+
+  if (user && pathname === '/login') {
+    const nextParam = safeNextPath(request.nextUrl.searchParams.get('next'));
+    return NextResponse.redirect(new URL(nextParam ?? '/', request.url));
+  }
+
+  if (user && pathname === '/signup') {
+    const nextParam = safeNextPath(request.nextUrl.searchParams.get('next'));
+    return NextResponse.redirect(new URL(nextParam ?? '/', request.url));
+  }
+
+  // Tenant onboarding gate: require personal details + Aadhaar proof upload
+  // before allowing access to tenant app pages.
+  if (user && pathname.startsWith('/app')) {
+    const isOnboarding = pathname === '/app/onboarding' || pathname.startsWith('/app/onboarding/');
+
+    if (!isOnboarding) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, full_name, phone')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      // Only gate tenants; admins can still access /admin.
+      if (profile?.role === 'tenant') {
+        const { data: kyc } = await supabase
+          .from('tenant_kyc')
+          .select('aadhaar_last4, aadhaar_file_path, completed_at')
+          .eq('tenant_id', user.id)
+          .maybeSingle();
+
+        const isComplete = Boolean(
+          (profile?.full_name ?? '').trim() &&
+            (profile?.phone ?? '').trim() &&
+            (kyc?.aadhaar_last4 ?? '').trim() &&
+            (kyc?.aadhaar_file_path ?? '').trim() &&
+            kyc?.completed_at,
+        );
+
+        if (!isComplete) {
+          const url = new URL('/app/onboarding', request.url);
+          url.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`);
+          return NextResponse.redirect(url);
+        }
+      }
+    }
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+};
