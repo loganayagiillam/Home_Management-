@@ -12,7 +12,7 @@ export async function POST(req: Request) {
   try {
     const supabase = await createSupabaseServerClient();
     if (!supabase) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
     }
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -21,6 +21,9 @@ export async function POST(req: Request) {
     }
 
     const membership = await getActiveMembershipForCurrentUser(supabase, user.id);
+    if (!membership?.roomId) {
+      return NextResponse.json({ error: 'You are not assigned to a room' }, { status: 400 });
+    }
 
     const body = (await req.json()) as unknown;
     const roomBillId =
@@ -45,7 +48,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
     }
 
-    if (membership?.roomId !== bill.room_id) {
+    if (membership.roomId !== bill.room_id) {
       return NextResponse.json({ error: 'Unauthorized to pay this bill' }, { status: 403 });
     }
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { getActiveMembershipForCurrentUser } from '@/lib/room/server';
 
 function getErrorString(error: unknown) {
   if (error instanceof Error) return error.message;
@@ -12,7 +13,7 @@ export async function POST(req: Request) {
   try {
     const supabase = await createSupabaseServerClient();
     if (!supabase) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 });
     }
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -33,6 +34,10 @@ export async function POST(req: Request) {
       typeof razorpay_signature !== 'string'
     ) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    if (typeof room_bill_id !== 'string' || !room_bill_id.trim()) {
+      return NextResponse.json({ error: 'Missing room_bill_id' }, { status: 400 });
     }
 
     const keyId = process.env.RAZORPAY_KEY_ID;
@@ -56,6 +61,13 @@ export async function POST(req: Request) {
       key_secret: secret,
     });
 
+    // Ensure the order receipt matches the room bill id we are recording.
+    const order = await razorpay.orders.fetch(razorpay_order_id);
+    const receipt = (order as unknown as { receipt?: unknown }).receipt;
+    if (typeof receipt !== 'string' || receipt.trim() !== room_bill_id.trim()) {
+      return NextResponse.json({ error: 'Order receipt mismatch' }, { status: 400 });
+    }
+
     const payment = await razorpay.payments.fetch(razorpay_payment_id);
     if (!payment || payment.status !== 'captured') {
       return NextResponse.json({ error: 'Payment not captured or invalid' }, { status: 400 });
@@ -70,31 +82,52 @@ export async function POST(req: Request) {
 
     const actualAmountPaid = amountPaise / 100;
 
-    if (typeof room_bill_id === 'string' && room_bill_id.trim()) {
-      // Prevent replay attacks
-      const { data: existingPayment } = await supabase
-        .from('payments')
-        .select('id')
-        .eq('reference', razorpay_payment_id)
-        .maybeSingle();
+    const membership = await getActiveMembershipForCurrentUser(supabase, user.id);
+    if (!membership?.roomId) {
+      return NextResponse.json({ error: 'You are not assigned to a room' }, { status: 400 });
+    }
 
-      if (existingPayment) {
-        return NextResponse.json({ success: true, message: 'Payment already recorded' });
-      }
+    const { data: bill, error: billError } = await supabase
+      .from('room_bill_summary')
+      .select('id, room_id, balance_due, is_paid')
+      .eq('id', room_bill_id.trim())
+      .maybeSingle();
 
-      const { error } = await supabase.from('payments').insert({
-        room_bill_id: room_bill_id.trim(),
-        paid_by: user.id,
-        recorded_by: user.id,
-        payment_method: 'upi',
-        amount: actualAmountPaid,
-        reference: razorpay_payment_id,
-      });
-      
-      if (error) {
-        console.error('Error recording payment:', error);
-        return NextResponse.json({ error: 'Failed to record payment' }, { status: 500 });
-      }
+    if (billError || !bill) {
+      return NextResponse.json({ error: 'Bill not found' }, { status: 404 });
+    }
+
+    if (bill.room_id !== membership.roomId) {
+      return NextResponse.json({ error: 'Unauthorized to record payment for this bill' }, { status: 403 });
+    }
+
+    if (bill.is_paid) {
+      return NextResponse.json({ success: true, message: 'Bill already marked paid' });
+    }
+
+    // Prevent replay attacks
+    const { data: existingPayment } = await supabase
+      .from('payments')
+      .select('id')
+      .eq('reference', razorpay_payment_id)
+      .maybeSingle();
+
+    if (existingPayment) {
+      return NextResponse.json({ success: true, message: 'Payment already recorded' });
+    }
+
+    const { error } = await supabase.from('payments').insert({
+      room_bill_id: room_bill_id.trim(),
+      paid_by: user.id,
+      recorded_by: user.id,
+      payment_method: 'upi',
+      amount: actualAmountPaid,
+      reference: razorpay_payment_id,
+    });
+
+    if (error) {
+      console.error('Error recording payment:', error);
+      return NextResponse.json({ error: 'Failed to record payment' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });

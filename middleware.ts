@@ -12,7 +12,14 @@ export async function middleware(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  const pathname = request.nextUrl.pathname;
+  const isProtected = pathname.startsWith('/admin') || pathname.startsWith('/app');
+
   if (!supabaseUrl || !supabaseAnonKey) {
+    // Fail closed for protected paths in production if Supabase env is missing.
+    if (isProtected && process.env.NODE_ENV === 'production') {
+      return new NextResponse('Server misconfigured: missing Supabase env vars', { status: 500 });
+    }
     return NextResponse.next();
   }
 
@@ -38,9 +45,6 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const pathname = request.nextUrl.pathname;
-  const isProtected = pathname.startsWith('/admin') || pathname.startsWith('/app');
 
   if (!user && isProtected) {
     const url = new URL('/login', request.url);

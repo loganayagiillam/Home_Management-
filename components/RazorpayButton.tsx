@@ -31,6 +31,13 @@ export function RazorpayButton({
   const handlePayment = async () => {
     setIsLoading(true);
 
+    const publicKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+    if (!publicKey) {
+      alert('Online payment is not configured. Please contact admin.');
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const isScriptLoaded = await loadRazorpayScript();
       if (!isScriptLoaded) {
@@ -51,7 +58,7 @@ export function RazorpayButton({
       if (!res.ok) throw new Error(data.error || 'Failed to create order');
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        key: publicKey,
         amount: data.amount,
         currency: data.currency,
         name: 'HomeHub',
@@ -79,6 +86,8 @@ export function RazorpayButton({
           } catch (e) {
             console.error(e);
             alert('An error occurred during payment verification.');
+          } finally {
+            setIsLoading(false);
           }
         },
         theme: {
@@ -94,12 +103,12 @@ export function RazorpayButton({
       const rzp = new (window as any).Razorpay(options);
       rzp.on('payment.failed', function (response: any) {
         alert(`Payment failed: ${response.error.description}`);
+        setIsLoading(false);
       });
       rzp.open();
     } catch (e: any) {
       console.error(e);
       alert(e.message || 'An error occurred. Please try again.');
-    } finally {
       setIsLoading(false);
     }
   };

@@ -22,6 +22,19 @@ Optional (server-only; do not expose to the browser):
 
 - `SUPABASE_SERVICE_ROLE_KEY`
 
+## Razorpay (optional)
+
+If you use online payments:
+
+Client (public):
+
+- `NEXT_PUBLIC_RAZORPAY_KEY_ID`
+
+Server (secret):
+
+- `RAZORPAY_KEY_ID`
+- `RAZORPAY_KEY_SECRET`
+
 ## Supabase setup
 
 1. Create a Supabase project.

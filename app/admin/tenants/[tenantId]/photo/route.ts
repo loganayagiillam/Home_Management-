@@ -40,5 +40,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ tenantId: stri
     return NextResponse.json({ error: signedError?.message ?? 'Failed to create download link' }, { status: 500 });
   }
 
-  return NextResponse.redirect(data.signedUrl);
+  const res = NextResponse.redirect(data.signedUrl);
+  res.headers.set('Cache-Control', 'no-store');
+  res.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  return res;
 }
