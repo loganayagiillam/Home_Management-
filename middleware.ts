@@ -23,11 +23,25 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const pendingCookies: Array<{ name: string; value: string; options: Parameters<NextResponse['cookies']['set']>[2] }> = [];
+
   const response = NextResponse.next({
     request: {
       headers: request.headers,
     },
   });
+
+  function applyPendingCookies(res: NextResponse) {
+    for (const c of pendingCookies) {
+      res.cookies.set(c.name, c.value, c.options);
+    }
+  }
+
+  function redirectWithCookies(url: URL) {
+    const res = NextResponse.redirect(url);
+    applyPendingCookies(res);
+    return res;
+  }
 
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
     cookies: {
@@ -37,6 +51,7 @@ export async function middleware(request: NextRequest) {
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
           response.cookies.set(name, value, options);
+          pendingCookies.push({ name, value, options });
         });
       },
     },
@@ -49,17 +64,17 @@ export async function middleware(request: NextRequest) {
   if (!user && isProtected) {
     const url = new URL('/login', request.url);
     url.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`);
-    return NextResponse.redirect(url);
+    return redirectWithCookies(url);
   }
 
   if (user && pathname === '/login') {
     const nextParam = safeNextPath(request.nextUrl.searchParams.get('next'));
-    return NextResponse.redirect(new URL(nextParam ?? '/', request.url));
+    return redirectWithCookies(new URL(nextParam ?? '/', request.url));
   }
 
   if (user && pathname === '/signup') {
     const nextParam = safeNextPath(request.nextUrl.searchParams.get('next'));
-    return NextResponse.redirect(new URL(nextParam ?? '/', request.url));
+    return redirectWithCookies(new URL(nextParam ?? '/', request.url));
   }
 
   // Tenant onboarding gate: require personal details + Aadhaar proof upload
@@ -94,7 +109,7 @@ export async function middleware(request: NextRequest) {
         if (!isComplete) {
           const url = new URL('/app/onboarding', request.url);
           url.searchParams.set('next', `${request.nextUrl.pathname}${request.nextUrl.search}`);
-          return NextResponse.redirect(url);
+          return redirectWithCookies(url);
         }
       }
     }
