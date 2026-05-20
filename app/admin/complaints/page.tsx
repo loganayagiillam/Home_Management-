@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/server';
+import { requireAdmin } from '@/lib/auth/server';
 import { updateComplaintStatus } from './actions';
 import type { Metadata } from 'next';
 import { Card } from '@/components/ui/card';
@@ -37,7 +37,7 @@ export default async function AdminComplaintsPage({
 }: {
   searchParams?: Promise<{ error?: string }> | { error?: string };
 }) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireAdmin();
 
   const sp = await resolveSearchParams(searchParams);
   const flashError = decodeSearchParam(sp?.error);

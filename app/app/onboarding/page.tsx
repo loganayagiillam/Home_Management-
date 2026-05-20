@@ -24,6 +24,7 @@ type KycRow = {
   address: string | null;
   aadhaar_last4: string | null;
   aadhaar_file_path: string | null;
+  photo_file_path: string | null;
   completed_at: string | null;
 };
 
@@ -41,7 +42,11 @@ export default async function TenantOnboardingPage({
 
   const [{ data: profile }, { data: kyc }] = await Promise.all([
     supabase.from('profiles').select('full_name, phone').eq('id', user.id).maybeSingle(),
-    supabase.from('tenant_kyc').select('tenant_id, date_of_birth, address, aadhaar_last4, aadhaar_file_path, completed_at').eq('tenant_id', user.id).maybeSingle(),
+    supabase
+      .from('tenant_kyc')
+      .select('tenant_id, date_of_birth, address, aadhaar_last4, aadhaar_file_path, photo_file_path, completed_at')
+      .eq('tenant_id', user.id)
+      .maybeSingle(),
   ]);
 
   const profileRow = profile as { full_name: string | null; phone: string | null } | null;
@@ -52,6 +57,7 @@ export default async function TenantOnboardingPage({
       (profileRow?.phone ?? '').trim() &&
       (kycRow?.aadhaar_last4 ?? '').trim() &&
       (kycRow?.aadhaar_file_path ?? '').trim() &&
+      (kycRow?.photo_file_path ?? '').trim() &&
       kycRow?.completed_at,
   );
 
@@ -59,7 +65,7 @@ export default async function TenantOnboardingPage({
     <div className="space-y-6">
       <PageHeader
         title="Complete your profile"
-        description="For security, please fill your personal details and upload Aadhaar proof (PDF)."
+        description="For security, please fill your personal details, upload Aadhaar proof (PDF), and upload a profile photo."
       />
 
       {flashError ? (
@@ -128,6 +134,17 @@ export default async function TenantOnboardingPage({
 
               <Field label="Aadhaar PDF">
                 <Input name="aadhaar_pdf" type="file" accept="application/pdf" required={!kycRow?.aadhaar_file_path} />
+              </Field>
+            </div>
+
+            <div className="pt-2">
+              <div className="text-sm font-semibold text-slate-900">Step 3: Profile photo</div>
+              <div className="mt-1 text-xs text-slate-600">Upload a clear face photo (JPG/PNG/WebP).</div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Field label="Photo">
+                <Input name="photo" type="file" accept="image/png,image/jpeg,image/webp" required={!kycRow?.photo_file_path} />
               </Field>
             </div>
 

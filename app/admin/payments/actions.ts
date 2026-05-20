@@ -28,6 +28,16 @@ export async function recordPaymentAdmin(formData: FormData) {
   }
   if (amount == null || amount <= 0) throw new Error('Amount must be > 0');
 
+  const { data: bill, error: billError } = await supabase
+    .from('room_bill_summary')
+    .select('id, balance_due')
+    .eq('id', roomBillId)
+    .maybeSingle();
+
+  if (billError) throw new Error(billError.message);
+  if (!bill) throw new Error('Bill not found');
+  if (amount > bill.balance_due) throw new Error(`Amount cannot exceed the balance due (₹${bill.balance_due})`);
+
   const insertPayload: {
     room_bill_id: string;
     paid_by: string | null;

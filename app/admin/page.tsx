@@ -1,12 +1,13 @@
-import { requireUser } from '@/lib/auth/server';
+import { requireAdmin } from '@/lib/auth/server';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { RealtimeClock } from '@/components/realtime-clock';
 
 export const metadata: Metadata = { title: 'Dashboard' };
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDashboardPage() {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireAdmin();
 
   // Fetch all stats in parallel for maximum performance
   const [
@@ -53,8 +54,13 @@ export default async function AdminDashboardPage() {
   return (
     <div className="animate-fade-in">
       <div className="page-header">
-        <h1 className="page-title">Dashboard</h1>
-        <p className="page-subtitle">Overview of your rental property.</p>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="page-title">Dashboard</h1>
+            <p className="page-subtitle">Overview of your rental property.</p>
+          </div>
+          <RealtimeClock className="text-xs text-slate-600" />
+        </div>
       </div>
 
       {/* ── Stat cards ── */}

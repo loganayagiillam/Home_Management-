@@ -202,11 +202,29 @@ export async function deleteRoom(formData: FormData) {
     const id = String(formData.get('id') ?? '').trim();
     if (!id) throw new Error('Missing room id');
 
-    const { data: before } = await supabase
-      .from('rooms')
-      .select('room_number, capacity, monthly_rent, status')
-      .eq('id', id)
-      .maybeSingle();
+    const [{ data: before }, { count: activeMembers }, { count: billsCount }] = await Promise.all([
+      supabase
+        .from('rooms')
+        .select('room_number, capacity, monthly_rent, status')
+        .eq('id', id)
+        .maybeSingle(),
+      supabase
+        .from('room_memberships')
+        .select('id', { count: 'exact', head: true })
+        .eq('room_id', id)
+        .is('left_at', null),
+      supabase
+        .from('room_bills')
+        .select('id', { count: 'exact', head: true })
+        .eq('room_id', id)
+    ]);
+
+    if ((activeMembers ?? 0) > 0) {
+      throw new Error('Cannot delete room with active tenants. Please remove them first.');
+    }
+    if ((billsCount ?? 0) > 0) {
+      throw new Error('Cannot delete room with existing billing history to preserve financial records.');
+    }
 
     const { error } = await supabase.from('rooms').delete().eq('id', id);
     if (error) throw new Error(error.message);

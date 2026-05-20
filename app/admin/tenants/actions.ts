@@ -16,6 +16,17 @@ export async function assignTenantToRoom(formData: FormData) {
   if (!tenantId) throw new Error('Missing tenant id');
   if (!roomId) throw new Error('Missing room id');
 
+  const { data: existingMembership } = await supabase
+    .from('room_memberships')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .is('left_at', null)
+    .maybeSingle();
+
+  if (existingMembership) {
+    throw new Error('Tenant is already active in a room');
+  }
+
   const { data: membership, error } = await supabase
     .from('room_memberships')
     .insert({

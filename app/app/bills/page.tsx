@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page';
 import { Select } from '@/components/ui/select';
 import { decodeSearchParam, resolveSearchParams } from '@/lib/flash';
+import { RazorpayButton } from '@/components/RazorpayButton';
 
 export const metadata: Metadata = { title: 'Bills' };
 export const dynamic = 'force-dynamic';
@@ -216,6 +217,18 @@ export default async function TenantBillsPage({
                         <Button type="submit">Submit</Button>
                       </div>
                     </form>
+                  </div>
+                ) : null}
+
+                {!b.is_paid && b.balance_due > 0 ? (
+                  <div className="border-t border-slate-100 pt-3">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-indigo-50/50 p-4 rounded-xl border border-indigo-100/50">
+                      <div>
+                        <div className="text-sm font-medium text-indigo-900">Pay Online</div>
+                        <div className="text-xs text-indigo-700 mt-0.5">Secure payment via Razorpay</div>
+                      </div>
+                      <RazorpayButton amount={b.balance_due} roomBillId={b.id} />
+                    </div>
                   </div>
                 ) : null}
               </Card>

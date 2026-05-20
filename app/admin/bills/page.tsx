@@ -1,5 +1,5 @@
-import { requireUser } from '@/lib/auth/server';
-import { addElectricityReading, upsertRoomBill } from './actions';
+import { requireAdmin } from '@/lib/auth/server';
+import { upsertRoomBill } from './actions';
 import type { Metadata } from 'next';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -49,7 +49,7 @@ export default async function AdminBillsPage({
 }: {
   searchParams?: Promise<{ error?: string }> | { error?: string };
 }) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireAdmin();
 
   const sp = await resolveSearchParams(searchParams);
   const flashError = decodeSearchParam(sp?.error);
@@ -77,7 +77,7 @@ export default async function AdminBillsPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Bills" description="Create one bill per room per month and record electricity readings." />
+      <PageHeader title="Bills" description="Create one bill per room per month (enter amounts directly)." />
 
       {flashError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{flashError}</div>
@@ -104,6 +104,9 @@ export default async function AdminBillsPage({
           </Field>
           <Field label="Rent (₹)">
             <Input name="rent_amount" inputMode="decimal" placeholder="0" defaultValue="0" required />
+          </Field>
+          <Field label="EB (₹)">
+            <Input name="electricity_amount" inputMode="decimal" placeholder="0" defaultValue="0" required />
           </Field>
           <Field label="Water (₹)">
             <Input name="water_amount" inputMode="decimal" placeholder="0" defaultValue="0" required />
@@ -159,9 +162,12 @@ export default async function AdminBillsPage({
                     <form action={upsertRoomBill} className="mt-3 space-y-3">
                       <input type="hidden" name="room_id" value={b.room_id} />
                       <input type="hidden" name="bill_month" value={monthInputValueFromBillMonth(b.bill_month)} />
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
                         <Field label="Rent">
                           <Input name="rent_amount" inputMode="decimal" defaultValue={String(b.rent_amount)} required />
+                        </Field>
+                        <Field label="EB">
+                          <Input name="electricity_amount" inputMode="decimal" defaultValue={String(b.electricity_amount)} required />
                         </Field>
                         <Field label="Water">
                           <Input name="water_amount" inputMode="decimal" defaultValue={String(b.water_amount)} required />
@@ -170,29 +176,9 @@ export default async function AdminBillsPage({
                           <Input name="other_amount" inputMode="decimal" defaultValue={String(b.other_amount)} required />
                         </Field>
                       </div>
-                      <div className="text-xs text-slate-600">EB amount auto-updates from electricity readings.</div>
                       <Button variant="secondary" type="submit">
                         Update
                       </Button>
-                    </form>
-                  </div>
-
-                  <div>
-                    <div className="text-xs font-semibold text-slate-600">Add electricity reading</div>
-                    <form action={addElectricityReading} className="mt-3 space-y-3">
-                      <input type="hidden" name="room_bill_id" value={b.id} />
-                      <div className="grid grid-cols-3 gap-2">
-                        <Field label="Previous">
-                          <Input name="previous_reading" inputMode="numeric" placeholder="0" required />
-                        </Field>
-                        <Field label="Current">
-                          <Input name="current_reading" inputMode="numeric" placeholder="0" required />
-                        </Field>
-                        <Field label="Rate/unit">
-                          <Input name="unit_rate" inputMode="decimal" placeholder="6.5" required />
-                        </Field>
-                      </div>
-                      <Button type="submit">Save reading</Button>
                     </form>
                   </div>
                 </div>

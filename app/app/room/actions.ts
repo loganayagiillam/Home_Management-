@@ -18,8 +18,32 @@ export async function createInvite(_prevState: InviteState, formData: FormData):
     const { supabase, user } = await requireUser();
     const membership = await getActiveMembershipForCurrentUser();
 
+    if (!membership) {
+      return { token: null, error: 'You are not assigned to a room yet' };
+    }
+
     if (!membership?.isLeader) {
       return { token: null, error: 'Only the room leader can create invites' };
+    }
+
+    const [{ data: room, error: roomError }, { count: activeCount, error: countError }] = await Promise.all([
+      supabase.from('rooms').select('id, capacity').eq('id', membership.roomId).maybeSingle(),
+      supabase
+        .from('room_memberships')
+        .select('id', { count: 'exact', head: true })
+        .eq('room_id', membership.roomId)
+        .is('left_at', null),
+    ]);
+
+    if (roomError) return { token: null, error: roomError.message };
+    if (countError) return { token: null, error: countError.message };
+    if (!room) return { token: null, error: 'Room not found' };
+
+    const capacity = room.capacity ?? 0;
+    const remainingSpots = Math.max(0, capacity - (activeCount ?? 0));
+
+    if (remainingSpots <= 0) {
+      return { token: null, error: 'Room is already full. Remove someone before inviting a new member.' };
     }
 
     const invitedEmailRaw = String(formData.get('invited_email') ?? '').trim();
@@ -34,7 +58,7 @@ export async function createInvite(_prevState: InviteState, formData: FormData):
         room_id: membership.roomId,
         token_hash: tokenHash,
         expires_at: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7).toISOString(),
-        max_uses: 10,
+        max_uses: remainingSpots,
         created_by: user.id,
         invited_email: invitedEmail,
         is_leader_invite: false,
@@ -64,6 +88,10 @@ export async function createInvite(_prevState: InviteState, formData: FormData):
 export async function removeMember(formData: FormData) {
   const { supabase, user } = await requireUser();
   const membership = await getActiveMembershipForCurrentUser();
+
+  if (!membership) {
+    redirect(`/app/room?error=${encodeURIComponent('You are not assigned to a room yet')}`);
+  }
 
   if (!membership?.isLeader) {
     redirect(`/app/room?error=${encodeURIComponent('Only the room leader can remove members')}`);

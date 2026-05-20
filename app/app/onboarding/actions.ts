@@ -32,6 +32,19 @@ function isPdf(file: File) {
   return file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
 }
 
+function isSupportedImage(file: File) {
+  const t = file.type;
+  if (t === 'image/jpeg' || t === 'image/png' || t === 'image/webp') return true;
+  const name = file.name.toLowerCase();
+  return name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png') || name.endsWith('.webp');
+}
+
+function imageExt(file: File) {
+  if (file.type === 'image/png' || file.name.toLowerCase().endsWith('.png')) return 'png';
+  if (file.type === 'image/webp' || file.name.toLowerCase().endsWith('.webp')) return 'webp';
+  return 'jpg';
+}
+
 export async function completeOnboarding(formData: FormData) {
   const { supabase, user } = await requireUser();
 
@@ -40,7 +53,7 @@ export async function completeOnboarding(formData: FormData) {
   try {
     const { data: existingKyc } = await supabase
       .from('tenant_kyc')
-      .select('aadhaar_file_path, aadhaar_last4, aadhaar_uploaded_at')
+      .select('aadhaar_file_path, aadhaar_last4, aadhaar_uploaded_at, photo_file_path, photo_uploaded_at')
       .eq('tenant_id', user.id)
       .maybeSingle();
 
@@ -53,6 +66,9 @@ export async function completeOnboarding(formData: FormData) {
 
     const file = formData.get('aadhaar_pdf');
     const aadhaarPdf = file instanceof File ? file : null;
+
+    const photoValue = formData.get('photo');
+    const photoFile = photoValue instanceof File ? photoValue : null;
 
     if (!fullName) throw new Error('Full name is required');
     if (!phone) throw new Error('Phone number is required');
@@ -67,6 +83,7 @@ export async function completeOnboarding(formData: FormData) {
     }
 
     const hasExistingProof = Boolean((existingKyc?.aadhaar_file_path ?? '').trim());
+    const hasExistingPhoto = Boolean((existingKyc?.photo_file_path ?? '').trim());
 
     if (!aadhaarPdf || aadhaarPdf.size === 0) {
       if (!hasExistingProof) {
@@ -83,6 +100,20 @@ export async function completeOnboarding(formData: FormData) {
       }
     }
 
+    if (!photoFile || photoFile.size === 0) {
+      if (!hasExistingPhoto) {
+        throw new Error('Profile photo is required');
+      }
+    } else {
+      if (!isSupportedImage(photoFile)) {
+        throw new Error('Only JPG/PNG/WebP files are allowed for photo');
+      }
+      // 2MB limit
+      if (photoFile.size > 2 * 1024 * 1024) {
+        throw new Error('Photo is too large (max 2MB)');
+      }
+    }
+
     // Update basic profile info
     const { error: profileError } = await supabase
       .from('profiles')
@@ -93,6 +124,7 @@ export async function completeOnboarding(formData: FormData) {
 
     // Upload Aadhaar proof (private bucket) if provided
     const proofPath = `${user.id}/aadhaar.pdf`;
+    const photoPath = `${user.id}/photo.${photoFile && photoFile.size > 0 ? imageExt(photoFile) : 'jpg'}`;
     const nowIso = new Date().toISOString();
 
     if (aadhaarPdf && aadhaarPdf.size > 0) {
@@ -102,6 +134,19 @@ export async function completeOnboarding(formData: FormData) {
         .from('tenant-proofs')
         .upload(proofPath, buffer, {
           contentType: 'application/pdf',
+          upsert: true,
+        });
+
+      if (uploadError) throw new Error(uploadError.message);
+    }
+
+    if (photoFile && photoFile.size > 0) {
+      const buffer = Buffer.from(await photoFile.arrayBuffer());
+
+      const { error: uploadError } = await supabase.storage
+        .from('tenant-proofs')
+        .upload(photoPath, buffer, {
+          contentType: photoFile.type || 'image/jpeg',
           upsert: true,
         });
 
@@ -119,6 +164,8 @@ export async function completeOnboarding(formData: FormData) {
           aadhaar_last4: aadhaarLast4,
           aadhaar_file_path: aadhaarPdf && aadhaarPdf.size > 0 ? proofPath : (existingKyc?.aadhaar_file_path ?? proofPath),
           aadhaar_uploaded_at: aadhaarPdf && aadhaarPdf.size > 0 ? nowIso : (existingKyc?.aadhaar_uploaded_at ?? null),
+          photo_file_path: photoFile && photoFile.size > 0 ? photoPath : (existingKyc?.photo_file_path ?? photoPath),
+          photo_uploaded_at: photoFile && photoFile.size > 0 ? nowIso : (existingKyc?.photo_uploaded_at ?? null),
           completed_at: nowIso,
         },
         { onConflict: 'tenant_id' },

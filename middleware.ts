@@ -74,7 +74,7 @@ export async function middleware(request: NextRequest) {
       if (profile?.role === 'tenant') {
         const { data: kyc } = await supabase
           .from('tenant_kyc')
-          .select('aadhaar_last4, aadhaar_file_path, completed_at')
+          .select('aadhaar_last4, aadhaar_file_path, photo_file_path, completed_at')
           .eq('tenant_id', user.id)
           .maybeSingle();
 
@@ -83,6 +83,7 @@ export async function middleware(request: NextRequest) {
             (profile?.phone ?? '').trim() &&
             (kyc?.aadhaar_last4 ?? '').trim() &&
             (kyc?.aadhaar_file_path ?? '').trim() &&
+            (kyc?.photo_file_path ?? '').trim() &&
             kyc?.completed_at,
         );
 

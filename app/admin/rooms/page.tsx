@@ -1,6 +1,7 @@
 import { requireAdmin } from '@/lib/auth/server';
 import { createRoom, deleteRoom, updateRoom } from './actions';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -147,7 +148,9 @@ export default async function AdminRoomsPage({
               <Card key={room.id} className="space-y-4">
                 <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-3">
                   <div>
-                    <div className="text-sm font-semibold">Room {room.room_number}</div>
+                    <Link href={`/admin/rooms/${room.id}`} className="text-sm font-semibold text-indigo-700 hover:text-indigo-800 hover:underline">
+                      Room {room.room_number}
+                    </Link>
                     <div className="mt-1 text-xs text-slate-600">
                       Occupancy: {members.length}/{room.capacity}
                     </div>

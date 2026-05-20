@@ -28,6 +28,18 @@ Optional (server-only; do not expose to the browser):
 2. In the Supabase SQL editor, run the SQL migrations in order from `supabase/migrations/`.
 3. In Supabase Auth, create users for your admin and tenants (email + password).
 
+### Storage bucket
+
+This app expects a private Supabase Storage bucket:
+
+- Bucket: `tenant-proofs` (private)
+
+It is used for tenant uploads (Aadhaar PDF + tenant photo) and admin-only downloads via signed URLs.
+
+### Notes on latest migrations
+
+- `0010_tenant_photo_upload.sql` adds `tenant_kyc.photo_file_path` and is required for the onboarding photo upload flow.
+
 ### Make a user an admin
 
 After the admin user exists in Auth, set the role in `profiles`:

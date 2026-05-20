@@ -33,14 +33,15 @@ export async function recordPayment(formData: FormData) {
   if (amount == null || amount <= 0) throw new Error('Amount must be > 0');
 
   const { data: bill, error: billError } = await supabase
-    .from('room_bills')
-    .select('id, room_id')
+    .from('room_bill_summary')
+    .select('id, room_id, balance_due')
     .eq('id', roomBillId)
     .maybeSingle();
 
   if (billError) throw new Error(billError.message);
   if (!bill) throw new Error('Bill not found');
   if (bill.room_id !== membership.roomId) throw new Error('Bill does not belong to your room');
+  if (amount > bill.balance_due) throw new Error(`Amount cannot exceed the balance due (₹${bill.balance_due})`);
 
   const { error } = await supabase.from('payments').insert({
     room_bill_id: roomBillId,

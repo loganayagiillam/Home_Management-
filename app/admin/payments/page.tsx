@@ -1,4 +1,4 @@
-import { requireUser } from '@/lib/auth/server';
+import { requireAdmin } from '@/lib/auth/server';
 import { recordPaymentAdmin } from './actions';
 import type { Metadata } from 'next';
 import { Badge } from '@/components/ui/badge';
@@ -42,7 +42,7 @@ export default async function AdminPaymentsPage({
 }: {
   searchParams?: Promise<{ error?: string }> | { error?: string };
 }) {
-  const { supabase } = await requireUser();
+  const { supabase } = await requireAdmin();
 
   const sp = await resolveSearchParams(searchParams);
   const flashError = decodeSearchParam(sp?.error);
