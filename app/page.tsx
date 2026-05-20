@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServerClientReadonly } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClientReadonly();
 
   if (!supabase) {
     redirect('/login');

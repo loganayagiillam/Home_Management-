@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
-import { createSupabaseServerClient } from '@/lib/supabase/server';
+import { createSupabaseServerClientReadonly } from '@/lib/supabase/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 type AuthResult = {
@@ -9,7 +9,7 @@ type AuthResult = {
 };
 
 export async function requireUser(): Promise<AuthResult> {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await createSupabaseServerClientReadonly();
 
   if (!supabase) {
     redirect('/login');
